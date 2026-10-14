@@ -3,6 +3,10 @@ import { createDeal, type Action, type Mode } from '../../src/game';
 import type { Page } from '@playwright/test';
 
 const modes: Mode[] = ['classic-1', 'classic-3', 'freecell', 'spider-1', 'spider-2', 'spider-4'];
+async function openActions(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: 'Spielaktionen ein-/ausklappen', exact: true });
+  if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+}
 async function seedGame(page: Page, seed: number, actions: Action[] = [], mode: Mode = 'classic-1'): Promise<void> {
   // Seed before the application starts: its pagehide handler correctly saves
   // the active game, so injecting into an already-running page is not stable.
@@ -23,6 +27,7 @@ for (const mode of ['classic-1', 'classic-3'] as const) {
     await page.locator(`#tableau [data-card="${action.card}"]`).dblclick();
     await expect(page.locator(`.upper [data-card="${action.card}"]`)).toHaveCount(1);
     await expect(page.locator('#metrics')).toContainText('1');
+    await openActions(page);
     await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
     await expect(page.locator(`#tableau [data-card="${action.card}"]`)).toHaveCount(1);
   });
@@ -42,6 +47,7 @@ for (const mode of ['classic-1', 'classic-3'] as const) {
     await seedGame(page, deal.board.seed, deal.solution.slice(0, index), mode);
     await page.locator(`.waste-stack [data-card="${action.card}"]`).dblclick();
     await expect(page.locator(`.single-stack [data-zone="foundation"][data-card="${action.card}"]`)).toHaveCount(1);
+    await openActions(page);
     await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
     await expect(page.locator(`.waste-stack [data-card="${action.card}"]`)).toHaveCount(1);
   });
@@ -55,9 +61,10 @@ test('all variants fit portrait, landscape, and desktop without scrolling', asyn
       await page.evaluate(m => { localStorage.setItem('solitaire:v1:mode', JSON.stringify(m)); }, mode);
       await page.reload();
       await expect(page.locator('.column')).toHaveCount(mode.startsWith('spider') ? 10 : mode === 'freecell' ? 8 : 7);
+      await openActions(page);
       const fits = await page.evaluate(() => ({
         width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
-        cards: [...document.querySelectorAll('.card,.tools')].every(el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1; }),
+        cards: [...document.querySelectorAll('.card,.action-menu,.tools,.tools .tool')].every(el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1; }),
       }));
       expect(fits.width).toBe(viewport.width); expect(fits.height).toBe(viewport.height); expect(fits.cards).toBe(true);
     }
@@ -73,6 +80,7 @@ test('Spider remains usable after all five deals and undo restores its stock', a
     await page.setViewportSize(viewport);
     await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#tableau .card')].every(el => el.getBoundingClientRect().bottom <= document.querySelector('#board')!.getBoundingClientRect().bottom + 1))).toBe(true);
   }
+  await openActions(page);
   await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
   await expect(page.locator('#tableau .card')).toHaveCount(94);
   await expect(page.locator('#stock .stock-count')).toHaveText('1');
@@ -100,6 +108,7 @@ test('tap moves, undo, save, and reload restore a real game', async ({ page }) =
   await expect(page.locator('#metrics')).toContainText('1');
   await page.reload();
   await expect(page.locator(`.upper [data-card="${action.card}"]`)).toHaveCount(1);
+  await openActions(page);
   await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
   await expect(page.locator(`#tableau [data-card="${action.card}"]`)).toHaveCount(1);
   await page.reload();
@@ -109,8 +118,10 @@ test('drag moves a card and hint highlights its source', async ({ page }) => {
   const deal = createDeal('classic-1', 9); const action = deal.solution[0];
   if (action.type !== 'move') throw new Error('test seed must start with a move');
   await seedGame(page, deal.board.seed);
+  await openActions(page);
   await page.getByRole('button', { name: 'Zughinweis', exact: true }).click();
   await expect(page.locator(`[data-card="${action.card}"]`)).toHaveClass(/hinted/);
+  await page.locator('#actions-toggle').click();
   const source = await page.locator(`[data-card="${action.card}"]`).boundingBox();
   const target = await page.locator(`.upper [data-zone="foundation"][data-pile="${action.to.pile}"]`).boundingBox();
   await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2); await page.mouse.down();
@@ -121,7 +132,10 @@ test('drag moves a card and hint highlights its source', async ({ page }) => {
 test('settings persist; automatic theme follows system', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' }); await page.goto('./');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await page.getByRole('button', { name: 'Menü', exact: true }).click(); await page.getByRole('button', { name: /Einstellungen/ }).click();
+  await expect(page.locator('#help-tip')).toHaveCount(0);
+  await openActions(page);
+  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Einstellungen', exact: true })).toBeVisible();
   await page.getByRole('switch', { name: 'Zeit anzeigen' }).uncheck();
   await page.getByRole('switch', { name: 'Züge anzeigen' }).uncheck();
   await page.getByRole('switch', { name: 'Punkte anzeigen' }).uncheck();
@@ -129,6 +143,11 @@ test('settings persist; automatic theme follows system', async ({ page }) => {
   await page.getByRole('button', { name: 'Schließen', exact: true }).click();
   await expect(page.locator('#metrics')).toHaveText('');
   await page.reload(); await expect(page.locator('html')).toHaveAttribute('data-theme', 'light'); await expect(page.locator('#metrics')).toHaveText('');
+  await openActions(page);
+  await page.getByRole('navigation', { name: 'Spielaktionen' }).getByRole('button', { name: 'Statistik', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Deine kleinen Erfolge.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Zurück zum Spiel', exact: true }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
 });
 test('completion records a win exactly once and shows statistics', async ({ page }) => {
   const deal = createDeal('classic-1', 9); const actions = deal.solution.slice(0, -1); const final = deal.solution.at(-1)!;
@@ -151,6 +170,30 @@ test('PWA caches every asset, reloads offline and opens every game offline', asy
   for (const mode of modes) {
     await page.evaluate(m => localStorage.setItem('solitaire:v1:mode', JSON.stringify(m)), mode); await page.reload();
     await expect(page.locator('.column')).toHaveCount(mode.startsWith('spider') ? 10 : mode === 'freecell' ? 8 : 7);
+    await openActions(page);
     await page.getByRole('button', { name: 'Zughinweis', exact: true }).click(); await expect(page.locator('.hinted').first()).toBeVisible();
   }
+});
+
+test('action menu stays expanded across actions and closes only on its toggle', async ({ page }) => {
+  await seedGame(page, 9);
+  const toggle = page.getByRole('button', { name: 'Spielaktionen ein-/ausklappen', exact: true });
+  const actions = page.getByRole('navigation', { name: 'Spielaktionen' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(actions).toBeHidden();
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(actions).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(actions.getByRole('button')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await page.getByRole('button', { name: 'Zurück zum Spiel', exact: true }).click();
+  await expect(actions).toBeVisible();
+  await page.getByRole('button', { name: 'Zughinweis', exact: true }).click();
+  await expect(actions).toBeVisible();
+  await page.locator('#metrics').click();
+  await expect(actions).toBeVisible();
+  await toggle.click();
+  await expect(actions).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 });

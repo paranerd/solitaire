@@ -6,19 +6,18 @@ import { abandonStats, freshSession, loadMode, loadSession, loadSettings, loadSt
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const icons: Record<string, string> = {
+  hamburger: '<path d="M5 6h14M5 12h14M5 18h14"/>',
   undo: '<path d="M9 5 4 10l5 5M4 10h9a6 6 0 0 1 0 12" transform="translate(0 -2)"/>',
   hint: '<path d="M9 18h6M10 21h4M8.5 14.5a6 6 0 1 1 7 0c-.9.7-1.5 1.7-1.5 3.5h-4c0-1.8-.6-2.8-1.5-3.5Z"/>',
-  menu: '<path d="M5 8h14M5 16h14"/>',
+  settings: '<path d="m9 3-.6 2.4-1.8 1L4.2 6 2.7 8.6l1.8 1.7v2.1l-1.8 1.7 1.5 2.6 2.4-.7 1.8 1L9 20h3l.6-2.4 1.8-1 2.4.7 1.5-2.6-1.8-1.7v-2.1l1.8-1.7L16.8 6l-2.4.5-1.8-1L12 3Z" transform="translate(1.5 .5)"/><circle cx="12" cy="12" r="3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
-  settings: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
   stats: '<path d="M5 20V12M12 20V5M19 20V9"/>',
   arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
-  check: '<path d="m5 12 4 4L19 6"/>',
   auto: '<path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/>',
   download: '<path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/>',
 };
-const icon = (name: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? icons.menu}</svg>`;
+const icon = (name: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? icons.settings}</svg>`;
 const modes = Object.keys(modeNames) as Mode[];
 const settings = loadSettings();
 let session = loadSession(loadMode());
@@ -37,17 +36,20 @@ app.innerHTML = `
   <div class="game-info"><span class="game-mark" aria-hidden="true">♠</span><button id="game-label" aria-label="Spielart wechseln"></button></div>
   <div id="metrics" class="metrics" aria-label="Spielinformationen"></div>
   <div id="board" class="board"><div id="layout" class="layout"><div id="upper" class="upper"></div><div id="tableau" class="tableau"></div></div></div>
-  <nav class="tools" aria-label="Spielaktionen">
-    <button id="new" class="tool" aria-label="Neue Partie" title="Neue Partie (N)">${icon('plus')}</button>
-    <span class="tool-divider"></span>
-    <button id="undo" class="tool" aria-label="Rückgängig" title="Rückgängig (Strg/⌘ Z)">${icon('undo')}</button>
-    <button id="hint" class="tool" aria-label="Zughinweis" title="Zughinweis (H)">${icon('hint')}</button>
-    <span class="tool-divider"></span>
-    <button id="menu" class="tool" aria-label="Menü" title="Menü">${icon('menu')}</button>
-  </nav>
+  <div class="action-menu">
+    <button id="actions-toggle" class="tool" aria-label="Spielaktionen ein-/ausklappen" title="Spielaktionen" aria-expanded="false" aria-controls="actions">${icon('hamburger')}</button>
+    <nav id="actions" class="tools" aria-label="Spielaktionen" hidden>
+      <button id="new" class="tool" aria-label="Neue Partie" title="Neue Partie (N)">${icon('plus')}</button>
+      <span class="tool-divider"></span>
+      <button id="undo" class="tool" aria-label="Rückgängig" title="Rückgängig (Strg/⌘ Z)">${icon('undo')}</button>
+      <button id="hint" class="tool" aria-label="Zughinweis" title="Zughinweis (H)">${icon('hint')}</button>
+      <span class="tool-divider"></span>
+      <button id="stats" class="tool" aria-label="Statistik" title="Statistik">${icon('stats')}</button>
+      <button id="menu" class="tool" aria-label="Einstellungen" title="Einstellungen">${icon('settings')}</button>
+    </nav>
+  </div>
   <button id="auto" class="auto-finish" hidden>${icon('auto')} Fertigspielen</button>
   <div id="notice" class="notice" role="status" aria-live="polite"></div>
-  <div id="help-tip" class="help-tip">Ziehen oder antippen.<span>Dein Tempo. Dein Spiel.</span></div>
   <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
   <div id="live" class="sr-only" role="status" aria-live="polite"></div>`;
 const boardElement = document.querySelector<HTMLElement>('#board')!;
@@ -58,6 +60,11 @@ const dialog = document.querySelector<HTMLDialogElement>('#dialog')!;
 const content = document.querySelector<HTMLElement>('#dialog-content')!;
 const notice = document.querySelector<HTMLElement>('#notice')!;
 const button = (id: string) => document.querySelector<HTMLButtonElement>('#' + id)!;
+button('actions-toggle').addEventListener('click', () => {
+  const actions = document.querySelector<HTMLElement>('#actions')!;
+  actions.hidden = !actions.hidden;
+  button('actions-toggle').setAttribute('aria-expanded', String(!actions.hidden));
+});
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const timeLabel = (seconds: number) => { const s = Math.floor(seconds); return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`; };
 function announce(message: string): void { document.querySelector<HTMLElement>('#live')!.textContent = message; }
@@ -131,13 +138,12 @@ function render(animate = true): void {
     const cards = pile.map((card, i) => { const html = cardMarkup(card, slot, y); if (i < pile.length - 1) y += (card.up ? faceStep : hiddenStep) * scale; return html; }).join('');
     return `<div class="column" ${slotAttrs(slot)}>${emptySlot(slot, `Leere Spalte ${col + 1}`, session.board.mode.startsWith('classic') ? 'K' : '')}${cards}</div>`;
   }).join('');
-  button('game-label').innerHTML = `<span>${mode === 'freecell' ? 'FreeCell' : spider ? 'Spider' : 'Classic'}</span><small>${mode === 'freecell' ? 'Vier freie Zellen' : spider ? `${mode.split('-')[1]} ${mode.endsWith('1') ? 'Farbe' : 'Farben'}` : `${mode.endsWith('1') ? 'Eine Karte' : 'Drei Karten'}`}</small>`;
+  button('game-label').innerHTML = `<span>${mode === 'freecell' ? 'FreeCell' : spider ? 'Spider' : 'Classic'}</span>`;
   button('undo').disabled = !session.actions.length || autoRunning;
   button('hint').disabled = won(session.board) || autoRunning;
   button('new').disabled = autoRunning;
   button('auto').hidden = !autoFinishAction(session.board) || won(session.board);
   button('auto').disabled = autoRunning;
-  document.querySelector<HTMLElement>('#help-tip')!.hidden = session.started;
   renderMetrics();
   if (focusedCard) layout.querySelector<HTMLElement>(`[data-card="${focusedCard}"]`)?.focus({ preventScroll: true });
   const version = ++animationVersion;
@@ -321,20 +327,8 @@ dialog.addEventListener('click', e => { if (e.target === dialog) { const r = dia
 dialog.addEventListener('close', () => { clockLast = performance.now(); });
 button('new').addEventListener('click', () => showGames());
 button('game-label').addEventListener('click', () => showGames());
-button('menu').addEventListener('click', showMenu);
-function showMenu(): void {
-  modal('Ein Moment für dich.', `<p class="dialog-intro">Alles, was du brauchst. Und dann zurück zum Spiel.</p>
-    <div class="menu-list">
-      <button data-page="games">${icon('plus')}<span>Spiel wählen<small>Classic, FreeCell oder Spider</small></span>${icon('arrow')}</button>
-      <button data-page="settings">${icon('settings')}<span>Einstellungen<small>Ganz nach deinem Geschmack</small></span>${icon('arrow')}</button>
-      <button data-page="stats">${icon('stats')}<span>Deine Statistik<small>Jede Partie zählt</small></span>${icon('arrow')}</button>
-    </div>
-    <div class="menu-note"><span class="status-dot"></span><span>${offlineReady ? 'Offline bereit' : navigator.onLine ? 'Offline-Modus wird vorbereitet' : 'Du spielst offline'} · Alles bleibt auf diesem Gerät</span></div>
-    ${installPrompt ? `<button class="secondary wide" id="install">${icon('download')} App installieren</button>` : ''}
-    <p class="keyboard-note">Tastatur: Tab & Enter · H für Hinweis · Strg/⌘ Z zurück</p>`);
-  content.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(el => el.addEventListener('click', () => el.dataset.page === 'games' ? showGames() : el.dataset.page === 'settings' ? showSettings() : showStats()));
-  content.querySelector('#install')?.addEventListener('click', async () => { await installPrompt?.prompt(); await installPrompt?.userChoice; installPrompt = null; showMenu(); });
-}
+button('menu').addEventListener('click', showSettings);
+button('stats').addEventListener('click', () => showStats());
 function showGames(chosen: Mode = session.board.mode): void {
   const group = chosen.startsWith('classic') ? 'classic' : chosen === 'freecell' ? 'freecell' : 'spider';
   modal('Was möchtest du spielen?', `<p class="dialog-intro">Drei Klassiker. Unendlich viele ruhige Momente.</p>
@@ -344,7 +338,6 @@ function showGames(chosen: Mode = session.board.mode): void {
       <button class="game-choice ${group === 'spider' ? 'active' : ''}" data-mode="spider-1"><span class="choice-symbol spider-symbol">✳</span><b>Spider</b><small>Sequenzen sammeln</small></button>
     </div>
     ${group !== 'freecell' ? `<div class="option-line"><span>${group === 'classic' ? 'Karten ziehen' : 'Farben'}</span><div class="segments" role="group" aria-label="${group === 'classic' ? 'Karten ziehen' : 'Spider-Farben'}">${(group === 'classic' ? [1, 3] : [1, 2, 4]).map(n => `<button class="${chosen.endsWith(String(n)) ? 'active' : ''}" data-variant="${group}-${n}" aria-pressed="${chosen.endsWith(String(n))}">${n}</button>`).join('')}</div></div>` : '<p class="variant-note">52 Karten · 4 freie Zellen · 8 Spalten</p>'}
-    <p class="assurance">${icon('check')} Jede neue Austeilung ist garantiert lösbar.</p>
     <button class="primary wide" id="start-game">Neue Partie ${icon('arrow')}</button>
     ${chosen !== session.board.mode ? '<button class="secondary wide" id="resume-game">Gespeicherte Partie fortsetzen</button>' : '<button class="text-button wide" id="restart-game">Diese Austeilung von vorn</button>'}
     <button class="text-button wide" id="rules">Spielregeln ansehen</button>`);
@@ -370,24 +363,28 @@ function confirmNew(mode: Mode, seed?: number): void {
   content.querySelector('#cancel-new')!.addEventListener('click', () => showGames(mode));
 }
 function showSettings(): void {
-  modal('So, wie es dir gefällt.', `<p class="dialog-intro">Weniger Ablenkung. Mehr Spiel.</p>
+  modal('Einstellungen', `<p class="dialog-intro">Weniger Ablenkung. Mehr Spiel.</p>
     <div class="setting-row theme-row"><span>Darstellung</span><div class="segments" role="group" aria-label="Farbschema">${(['auto', 'light', 'dark'] as const).map((t, i) => `<button data-theme="${t}" class="${settings.theme === t ? 'active' : ''}" aria-pressed="${settings.theme === t}">${['Auto', 'Hell', 'Dunkel'][i]}</button>`).join('')}</div></div>
     <p class="section-label">AUF DEM SPIELFELD</p>
     ${(['time', 'moves', 'score', 'animations'] as const).map((key, i) => `<label class="setting-row"><span>${['Zeit anzeigen', 'Züge anzeigen', 'Punkte anzeigen', 'Animationen'][i]}</span><input type="checkbox" data-setting="${key}" ${settings[key] ? 'checked' : ''} role="switch"><span class="switch" aria-hidden="true"></span></label>`).join('')}
     <p class="settings-note">Spielstände, Einstellungen und Statistik werden automatisch auf diesem Gerät gespeichert.</p>
-    <button class="text-button wide" id="back-menu">Zurück zum Menü</button>`);
+    <div class="menu-note"><span class="status-dot"></span><span>${offlineReady ? 'Offline bereit' : navigator.onLine ? 'Offline-Modus wird vorbereitet' : 'Du spielst offline'} · Alles bleibt auf diesem Gerät</span></div>
+    ${installPrompt ? `<button class="secondary wide" id="install">${icon('download')} App installieren</button>` : ''}
+    <p class="keyboard-note">Tastatur: Tab & Enter · H für Hinweis · Strg/⌘ Z zurück</p>
+    <button class="text-button wide" id="back-game">Zurück zum Spiel</button>`);
   content.querySelectorAll<HTMLButtonElement>('[data-theme]').forEach(el => el.addEventListener('click', () => { settings.theme = el.dataset.theme as typeof settings.theme; setTheme(); saveSettings(settings); showSettings(); }));
   content.querySelectorAll<HTMLInputElement>('[data-setting]').forEach(el => el.addEventListener('change', () => { settings[el.dataset.setting as 'time' | 'moves' | 'score' | 'animations'] = el.checked; setTheme(); saveSettings(settings); renderMetrics(); }));
-  content.querySelector('#back-menu')!.addEventListener('click', showMenu);
+  content.querySelector('#back-game')!.addEventListener('click', () => dialog.close());
+  content.querySelector('#install')?.addEventListener('click', async () => { await installPrompt?.prompt(); await installPrompt?.userChoice; installPrompt = null; showSettings(); });
 }
 function showStats(mode: Mode = session.board.mode): void {
   const stats = loadStats(mode);
   modal('Deine kleinen Erfolge.', `<p class="dialog-intro">Ein Zug nach dem anderen.</p>
     <label class="select-label">Spielart<select id="stats-mode">${modes.map(m => `<option value="${m}" ${mode === m ? 'selected' : ''}>${modeNames[m]}</option>`).join('')}</select></label>
     <div class="stats-grid"><div><b>${stats.played}</b><span>Partien</span></div><div><b>${stats.wins}</b><span>Gewonnen</span></div><div><b>${stats.played ? Math.round(stats.wins / stats.played * 100) : 0}<small>%</small></b><span>Gewinnrate</span></div><div><b>${stats.bestTime === null ? '–' : timeLabel(stats.bestTime)}</b><span>Beste Zeit</span></div><div><b>${stats.bestMoves ?? '–'}</b><span>Wenigste Züge</span></div><div><b>${stats.bestStreak}</b><span>Beste Siegesserie</span></div></div>
-    <p class="settings-note">Eine Partie zählt ab dem ersten Zug. Neustarts unterbrechen die Siegesserie. Die Zeit pausiert im Menü und wenn die App im Hintergrund ist.</p><button class="text-button wide" id="back-menu">Zurück zum Menü</button>`);
+    <p class="settings-note">Eine Partie zählt ab dem ersten Zug. Neustarts unterbrechen die Siegesserie. Die Zeit pausiert bei geöffneten Dialogen und wenn die App im Hintergrund ist.</p><button class="text-button wide" id="back-game">Zurück zum Spiel</button>`);
   content.querySelector<HTMLSelectElement>('#stats-mode')!.addEventListener('change', e => showStats((e.target as HTMLSelectElement).value as Mode));
-  content.querySelector('#back-menu')!.addEventListener('click', showMenu);
+  content.querySelector('#back-game')!.addEventListener('click', () => dialog.close());
 }
 function showRules(mode: Mode): void {
   const spider = isSpider(mode);

@@ -15,7 +15,7 @@ Eine minimalistische Solitaire-PWA auf Deutsch. TypeScript, SCSS und Vite – oh
 - Automatisches helles/dunkles Farbschema, Kartenbewegungs- und Wendeanimationen, Berücksichtigung von reduzierter Bewegung
 - Anpassung an Hoch- und Querformat; das Spielfeld scrollt nicht
 
-Das Plus öffnet die Spielauswahl. Das Menü enthält Einstellungen und Statistik. `H` zeigt einen Hinweis, `N` die Spielauswahl, `Strg/⌘ Z` macht einen Zug rückgängig. `Tab`, Pfeiltasten und `Enter` bedienen das Spielfeld. `Escape` hebt die Auswahl auf.
+Der Hamburger-Button links oben klappt die Aktionsbuttons nach unten aus. Sie bleiben bis zum erneuten Klick geöffnet. Das Plus öffnet die Spielauswahl, das Zahnrad die Einstellungen und das Balkensymbol die Statistik. `H` zeigt einen Hinweis, `N` die Spielauswahl, `Strg/⌘ Z` macht einen Zug rückgängig. `Tab`, Pfeiltasten und `Enter` bedienen das Spielfeld. `Escape` hebt die Auswahl auf.
 
 ## Lösbare Austeilungen
 
@@ -54,11 +54,11 @@ Die PNG-App-Icons sind eingecheckt. Nach einer Änderung an `public/icon.svg` la
 
 ## Offline und Installation
 
-Die App einmal online öffnen, bis im Menü **Offline bereit** erscheint. Danach sind alle Spielarten, neue Partien, Hinweise und Speicherung vollständig offline verfügbar. Der Build erzeugt einen Service Worker, der sämtliche App-Dateien vorab speichert. Es werden keine Inhalte oder Spielstände von einem Server nachgeladen.
+Die App einmal online öffnen, bis in den Einstellungen **Offline bereit** erscheint. Danach sind alle Spielarten, neue Partien, Hinweise und Speicherung vollständig offline verfügbar. Der Build erzeugt einen Service Worker, der sämtliche App-Dateien vorab speichert. Es werden keine Inhalte oder Spielstände von einem Server nachgeladen.
 
-In unterstützten Browsern erscheint im Menü **App installieren**. Auf iPhone/iPad in Safari **Teilen → Zum Home-Bildschirm** verwenden. Installation ist für Offline-Nutzung nicht zwingend erforderlich. Updates werden ohne Unterbrechung einer offenen Partie aktiviert, sobald die alten App-Fenster geschlossen wurden. Der Offline-Modus benötigt HTTPS oder localhost.
+In unterstützten Browsern erscheint in den Einstellungen **App installieren**. Auf iPhone/iPad in Safari **Teilen → Zum Home-Bildschirm** verwenden. Installation ist für Offline-Nutzung nicht zwingend erforderlich. Updates werden ohne Unterbrechung einer offenen Partie aktiviert, sobald die alten App-Fenster geschlossen wurden. Der Offline-Modus benötigt HTTPS oder localhost.
 
-Spielstände und Statistik liegen im lokalen Browserspeicher dieses Geräts. Browserdaten löschen entfernt auch diese Daten. Es gibt keine Synchronisierung zwischen Geräten. Zeit läuft ab dem ersten Zug und pausiert im Menü und im Hintergrund. Neustarts gestarteter, ungewonnener Partien unterbrechen die Siegesserie.
+Spielstände und Statistik liegen im lokalen Browserspeicher dieses Geräts. Browserdaten löschen entfernt auch diese Daten. Es gibt keine Synchronisierung zwischen Geräten. Zeit läuft ab dem ersten Zug und pausiert bei geöffneten Dialogen und im Hintergrund. Neustarts gestarteter, ungewonnener Partien unterbrechen die Siegesserie.
 
 ## GitHub Pages
 

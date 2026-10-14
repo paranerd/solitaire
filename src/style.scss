@@ -21,7 +21,7 @@
 html, body, #app { width: 100%; height: 100%; min-height: 0; margin: 0; overflow: hidden; }
 html { overscroll-behavior: none; background: var(--bg); }
 body { color: var(--ink); user-select: none; -webkit-user-select: none; }
-#app { height: 100dvh; position: relative; background: radial-gradient(ellipse at 50% 8%, #ffffff0a, transparent 70%), var(--bg); }
+#app { --header-left: max(30px, env(safe-area-inset-left)); --header-top: max(20px, env(safe-area-inset-top)); height: 100dvh; position: relative; background: radial-gradient(ellipse at 50% 8%, #ffffff0a, transparent 70%), var(--bg); }
 button, input, select { font: inherit; }
 button { appearance: none; border: 0; color: inherit; cursor: pointer; background: none; padding: 0; }
 button:disabled { cursor: default; opacity: .35; }
@@ -29,12 +29,11 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 [hidden] { display: none !important; }
 svg { width: 22px; height: 22px; flex-shrink: 0; }
 .game-info {
-  position: absolute; left: max(30px, env(safe-area-inset-left)); top: max(26px, env(safe-area-inset-top));
+  position: absolute; left: calc(var(--header-left) + 56px); top: var(--header-top); min-height: 44px;
   display: flex; gap: 12px; align-items: center; z-index: 2;
   .game-mark { font-size: 30px; opacity: .8; line-height: 1; }
   button { display: grid; gap: 4px; text-align: left; padding: 3px 0; }
   button > span { font-size: 15px; font-weight: 650; letter-spacing: .01em; }
-  small { font-size: 11px; color: var(--muted); }
 }
 .metrics {
   position: absolute; top: max(30px, env(safe-area-inset-top)); right: max(32px, env(safe-area-inset-right));
@@ -98,20 +97,27 @@ svg { width: 22px; height: 22px; flex-shrink: 0; }
 .hinted, .drop-target { outline: 2px solid var(--focus) !important; outline-offset: 2px; }
 .column:has(.hinted) { > .placeholder { outline: 2px solid var(--focus); outline-offset: 2px; } }
 .drag-ghost { position: fixed !important; pointer-events: none; z-index: 1000; box-shadow: 0 12px 24px #122a2430; }
-.tools {
-  position: absolute; bottom: calc(27px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 3px; padding: 7px 9px; background: var(--tool-bg); border: 1px solid var(--line);
-  border-radius: 18px; box-shadow: 0 4px 20px #1c342808; z-index: 3; backdrop-filter: blur(12px);
-  .tool { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; }
-  .tool-divider { width: 1px; height: 19px; background: var(--line); margin: 0 5px; }
+.action-menu {
+  position: absolute; left: var(--header-left); top: var(--header-top); width: 44px; z-index: 200;
+  .tool { width: 100%; height: 44px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; }
+  > .tool { background: var(--tool-bg); border: 1px solid var(--line); box-shadow: 0 4px 20px #1c342808; }
+  > .tool[aria-expanded='true'] { background: var(--slot-bg); }
 }
-@media (hover: hover) { .tool:not(:disabled):hover, .icon-button:hover { background: var(--slot-bg); } .menu-list button:hover { background: var(--slot-bg); } }
+.tools {
+  position: absolute; top: calc(100% + 8px); left: 0; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0;
+  background: var(--tool-bg); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 4px 20px #1c342808; backdrop-filter: blur(12px);
+  animation: unfold-tools .18s ease-out; transform-origin: top center;
+  .tool-divider { width: 22px; height: 1px; background: var(--line); margin: 4px 0; flex-shrink: 0; }
+}
+@keyframes unfold-tools { from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-6px); } to { opacity: 1; clip-path: inset(0); transform: translateY(0); } }
+@media (hover: hover) { .tool:not(:disabled):hover, .icon-button:hover { background: var(--slot-bg); } }
 .auto-finish {
   position: absolute; bottom: calc(40px + env(safe-area-inset-bottom)); right: 30px; display: flex; align-items: center; gap: 8px;
   background: var(--accent); color: var(--bg); border-radius: 20px; padding: 10px 15px; font-size: 12px; z-index: 3;
   svg { width: 17px; height: 17px; }
 }
-.help-tip { position: absolute; left: 30px; bottom: calc(39px + env(safe-area-inset-bottom)); font-size: 11px; color: var(--muted); line-height: 1.8; span { display: block; opacity: .8; font-size: 10px; } }
 .notice {
   position: absolute; left: 50%; bottom: calc(108px + env(safe-area-inset-bottom)); transform: translate(-50%, 10px);
   background: var(--surface); border: 1px solid var(--line); color: var(--ink); box-shadow: 0 4px 20px #13291e0d;
@@ -138,14 +144,6 @@ dialog {
 .secondary { border: 1px solid var(--line); margin-top: 10px; }
 .wide { width: 100%; }
 .text-button { color: var(--muted); font-size: 12px; padding: 13px 6px; min-height: 44px; }
-.menu-list {
-  display: grid; gap: 4px; margin-bottom: 20px;
-  button { display: flex; align-items: center; gap: 15px; text-align: left; padding: 17px 12px; border-radius: 12px; }
-  button > span { flex: 1; font-size: 14px; font-weight: 550; }
-  small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 6px; }
-  button > svg:first-child { color: var(--muted); }
-  button > svg:last-child { width: 16px; height: 16px; color: var(--muted); }
-}
 .menu-note { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); padding: 20px 0 8px; }
 .status-dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
 .keyboard-note { text-align: center; font-size: 9px; color: var(--muted); margin: 11px 0 0; line-height: 1.7; }
@@ -161,7 +159,6 @@ dialog {
 .option-line { display: flex; align-items: center; justify-content: space-between; margin: 22px 0; font-size: 12px; }
 .segments { display: flex; border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; button { min-width: 40px; min-height: 34px; padding: 7px 11px; border-radius: 6px; font-size: 11px; color: var(--muted); } .active { color: var(--ink); background: var(--slot-bg); font-weight: 600; } }
 .variant-note { text-align: center; color: var(--muted); font-size: 11px; margin: 26px 0; }
-.assurance { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; margin: 20px 0 22px; svg { width: 14px; height: 14px; } }
 .setting-row {
   display: flex; align-items: center; padding: 17px 0; border-bottom: 1px solid var(--line); font-size: 13px; position: relative;
   > span:first-child { flex: 1; }
@@ -182,11 +179,10 @@ dialog {
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @keyframes arrive { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 600px) {
-  .game-info { left: max(17px, env(safe-area-inset-left)); top: calc(22px + env(safe-area-inset-top)); gap: 8px; .game-mark { font-size: 24px; } button > span { font-size: 13px; } small { font-size: 10px; } }
+  #app { --header-left: max(17px, env(safe-area-inset-left)); --header-top: calc(14px + env(safe-area-inset-top)); }
+  .game-info { gap: 8px; .game-mark { font-size: 24px; } button > span { font-size: 13px; } }
   .metrics { top: calc(24px + env(safe-area-inset-top)); right: max(17px, env(safe-area-inset-right)); gap: 15px; b { font-size: 13px; } small { font-size: 9px; } }
   .board { top: calc(88px + env(safe-area-inset-top)); bottom: calc(105px + env(safe-area-inset-bottom)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); }
-  .tools { bottom: calc(23px + env(safe-area-inset-bottom)); }
-  .help-tip { bottom: calc(95px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; font-size: 10px; span { display: none; } }
   .auto-finish { right: 50%; transform: translateX(50%); bottom: calc(100px + env(safe-area-inset-bottom)); padding: 7px 13px; font-size: 11px; }
   .notice { bottom: calc(141px + env(safe-area-inset-bottom)); font-size: 11px; }
   dialog { padding: 26px 22px; border-radius: 20px; }
@@ -197,12 +193,12 @@ dialog {
   .card .pip { font-size: calc(var(--card-w) * .43); }
 }
 @media (max-height: 500px) and (orientation: landscape) {
-  .game-info { top: max(10px, env(safe-area-inset-top)); left: max(18px, env(safe-area-inset-left)); gap: 8px; .game-mark { font-size: 22px; } button { display: flex; align-items: baseline; gap: 10px; } button > span { font-size: 12px; } small { font-size: 10px; } }
+  #app { --header-left: max(18px, env(safe-area-inset-left)); --header-top: max(3px, env(safe-area-inset-top)); }
+  .game-info { gap: 8px; .game-mark { font-size: 22px; } button { display: flex; align-items: baseline; gap: 10px; } button > span { font-size: 12px; } }
   .metrics { top: max(15px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); gap: 20px; > span { display: flex; gap: 6px; align-items: baseline; } b { font-size: 12px; } small { font-size: 9px; } }
   .board { top: calc(53px + env(safe-area-inset-top)); bottom: calc(64px + env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); }
-  .tools { bottom: calc(7px + env(safe-area-inset-bottom)); padding: 3px 7px; border-radius: 14px; .tool { width: 40px; height: 38px; } }
+  .tools { gap: 2px; .tool { height: 38px; } }
   .auto-finish { bottom: calc(13px + env(safe-area-inset-bottom)); }
-  .help-tip { bottom: calc(17px + env(safe-area-inset-bottom)); font-size: 10px; span { display: none; } }
   .notice { bottom: calc(65px + env(safe-area-inset-bottom)); }
   dialog { padding: 22px 28px; }
 }
