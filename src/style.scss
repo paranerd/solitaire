@@ -118,6 +118,16 @@ svg { width: 22px; height: 22px; flex-shrink: 0; }
   background: var(--accent); color: var(--bg); border-radius: 20px; padding: 10px 15px; font-size: 12px; z-index: 3;
   svg { width: 17px; height: 17px; }
 }
+.update-banner {
+  position: absolute; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px); padding: 16px 20px;
+  display: flex; align-items: center; gap: 24px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: 0 4px 20px #1c342818; z-index: 201;
+  p { margin: 0; font-size: 13px; line-height: 1.5; }
+  .update-actions { display: flex; align-items: center; gap: 12px; }
+  .primary { min-height: 44px; padding: 10px 14px; white-space: nowrap; }
+}
+.settings-update { margin-top: 24px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; p { margin: 0; font-size: 13px; line-height: 1.5; } }
 .notice {
   position: absolute; left: 50%; bottom: calc(108px + env(safe-area-inset-bottom)); transform: translate(-50%, 10px);
   background: var(--surface); border: 1px solid var(--line); color: var(--ink); box-shadow: 0 4px 20px #13291e0d;
@@ -179,6 +189,7 @@ dialog {
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @keyframes arrive { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 600px) {
+  .update-banner { width: calc(100% - 32px); flex-direction: column; gap: 8px; padding: 14px 16px; align-items: stretch; .update-actions { justify-content: space-between; } }
   #app { --header-left: max(17px, env(safe-area-inset-left)); --header-top: calc(14px + env(safe-area-inset-top)); }
   .game-info { gap: 8px; .game-mark { font-size: 24px; } button > span { font-size: 13px; } }
   .metrics { top: calc(24px + env(safe-area-inset-top)); right: max(17px, env(safe-area-inset-right)); gap: 15px; b { font-size: 13px; } small { font-size: 9px; } }

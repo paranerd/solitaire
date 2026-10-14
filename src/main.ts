@@ -26,6 +26,11 @@ let hintAction: Action | null = null;
 let autoRunning = false;
 let animationVersion = 0;
 let offlineReady = false;
+let workerRegistration: ServiceWorkerRegistration | null = null;
+let pendingUpdate: ServiceWorker | null = null;
+let deferredUpdate: ServiceWorker | null = null;
+let updating = false;
+let updateTimer = 0;
 let installPrompt: (Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }) | null = null;
 let cardWidth = 90, cardHeight = 130, tableauHeight = 350;
 let clockLast = performance.now();
@@ -49,6 +54,10 @@ app.innerHTML = `
     </nav>
   </div>
   <button id="auto" class="auto-finish" hidden>${icon('auto')} Fertigspielen</button>
+  <section id="update-banner" class="update-banner" aria-label="App-Update" hidden>
+    <p role="status">Eine neue Version ist verfügbar.</p>
+    <div class="update-actions"><button id="update-now" class="primary">Jetzt aktualisieren</button><button id="update-later" class="text-button">Später</button></div>
+  </section>
   <div id="notice" class="notice" role="status" aria-live="polite"></div>
   <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
   <div id="live" class="sr-only" role="status" aria-live="polite"></div>`;
@@ -71,6 +80,42 @@ function announce(message: string): void { document.querySelector<HTMLElement>('
 function toast(message: string): void {
   clearTimeout(noticeTimer); notice.textContent = message; notice.classList.add('visible');
   noticeTimer = window.setTimeout(() => notice.classList.remove('visible'), 3800);
+}
+function renderUpdate(): void {
+  document.querySelector<HTMLElement>('#update-banner')!.hidden = !pendingUpdate || deferredUpdate === pendingUpdate;
+  button('update-now').disabled = updating;
+  button('update-now').textContent = updating ? 'Wird aktualisiert …' : 'Jetzt aktualisieren';
+  button('update-later').disabled = updating;
+  const settingsUpdate = content.querySelector<HTMLElement>('#settings-update');
+  if (settingsUpdate) {
+    settingsUpdate.hidden = !pendingUpdate;
+    const updateButton = settingsUpdate.querySelector<HTMLButtonElement>('button')!;
+    updateButton.disabled = updating;
+    updateButton.textContent = updating ? 'Wird aktualisiert …' : 'Jetzt aktualisieren';
+  }
+}
+function detectUpdate(): void {
+  const waiting = workerRegistration?.waiting ?? null;
+  if (waiting !== pendingUpdate) {
+    pendingUpdate = waiting; updating = false; clearTimeout(updateTimer);
+  }
+  renderUpdate();
+}
+function applyUpdate(): void {
+  detectUpdate();
+  if (!pendingUpdate || updating) return;
+  advanceClock(); saveSession(session);
+  updating = true; renderUpdate();
+  pendingUpdate.postMessage({ type: 'SKIP_WAITING' });
+  updateTimer = window.setTimeout(() => {
+    updating = false; renderUpdate();
+    toast('Das Update konnte nicht abgeschlossen werden. Bitte versuche es erneut.');
+  }, 15000);
+}
+button('update-now').addEventListener('click', applyUpdate);
+button('update-later').addEventListener('click', () => { deferredUpdate = pendingUpdate; renderUpdate(); });
+function checkForUpdate(): void {
+  if (navigator.onLine && workerRegistration && !workerRegistration.installing) void workerRegistration.update().catch(() => {});
 }
 function setTheme(): void {
   const dark = settings.theme === 'dark' || (settings.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -367,6 +412,7 @@ function showSettings(): void {
     <div class="setting-row theme-row"><span>Darstellung</span><div class="segments" role="group" aria-label="Farbschema">${(['auto', 'light', 'dark'] as const).map((t, i) => `<button data-theme="${t}" class="${settings.theme === t ? 'active' : ''}" aria-pressed="${settings.theme === t}">${['Auto', 'Hell', 'Dunkel'][i]}</button>`).join('')}</div></div>
     <p class="section-label">AUF DEM SPIELFELD</p>
     ${(['time', 'moves', 'score', 'animations'] as const).map((key, i) => `<label class="setting-row"><span>${['Zeit anzeigen', 'Züge anzeigen', 'Punkte anzeigen', 'Animationen'][i]}</span><input type="checkbox" data-setting="${key}" ${settings[key] ? 'checked' : ''} role="switch"><span class="switch" aria-hidden="true"></span></label>`).join('')}
+    <section id="settings-update" class="settings-update" hidden><p>Eine neue Version ist verfügbar.</p><button class="secondary wide" id="settings-update-now">Jetzt aktualisieren</button></section>
     <p class="settings-note">Spielstände, Einstellungen und Statistik werden automatisch auf diesem Gerät gespeichert.</p>
     <div class="menu-note"><span class="status-dot"></span><span>${offlineReady ? 'Offline bereit' : navigator.onLine ? 'Offline-Modus wird vorbereitet' : 'Du spielst offline'} · Alles bleibt auf diesem Gerät</span></div>
     ${installPrompt ? `<button class="secondary wide" id="install">${icon('download')} App installieren</button>` : ''}
@@ -374,6 +420,8 @@ function showSettings(): void {
     <button class="text-button wide" id="back-game">Zurück zum Spiel</button>`);
   content.querySelectorAll<HTMLButtonElement>('[data-theme]').forEach(el => el.addEventListener('click', () => { settings.theme = el.dataset.theme as typeof settings.theme; setTheme(); saveSettings(settings); showSettings(); }));
   content.querySelectorAll<HTMLInputElement>('[data-setting]').forEach(el => el.addEventListener('change', () => { settings[el.dataset.setting as 'time' | 'moves' | 'score' | 'animations'] = el.checked; setTheme(); saveSettings(settings); renderMetrics(); }));
+  content.querySelector('#settings-update-now')!.addEventListener('click', applyUpdate);
+  renderUpdate();
   content.querySelector('#back-game')!.addEventListener('click', () => dialog.close());
   content.querySelector('#install')?.addEventListener('click', async () => { await installPrompt?.prompt(); await installPrompt?.userChoice; installPrompt = null; showSettings(); });
 }
@@ -442,10 +490,29 @@ setInterval(() => {
 }, 500);
 setTheme(); resize();
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL }).then(async registration => {
+  let controlled = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!controlled) { controlled = true; return; }
+    if (reloading) return;
+    reloading = true;
+    advanceClock(); saveSession(session);
+    window.location.reload();
+  });
+  navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js', { scope: import.meta.env.BASE_URL, updateViaCache: 'none' }).then(async registration => {
+    workerRegistration = registration;
+    const watchInstalling = () => {
+      const worker = registration.installing;
+      worker?.addEventListener('statechange', detectUpdate);
+      detectUpdate();
+    };
+    registration.addEventListener('updatefound', watchInstalling);
+    watchInstalling();
     await navigator.serviceWorker.ready; offlineReady = true;
-    const notify = () => { if (registration.waiting) toast('Eine neue Version ist bereit und wird beim nächsten Öffnen geladen.'); };
-    notify(); registration.addEventListener('updatefound', () => registration.installing?.addEventListener('statechange', notify));
+    detectUpdate();
   }).catch(() => { toast('Offline-Modus konnte nicht vorbereitet werden. Bitte öffne die App später erneut.'); });
+  window.addEventListener('online', checkForUpdate);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+  setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60 * 1000);
 }
 if (storageUnavailable()) toast('Der Browser erlaubt kein lokales Speichern. Diese Partie bleibt bis zum Schließen geöffnet.');

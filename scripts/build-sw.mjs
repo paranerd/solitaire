@@ -25,6 +25,9 @@ const ROOT = new URL('./', self.location.href).href;
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)));
 });
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+});
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
