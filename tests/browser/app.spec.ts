@@ -3,16 +3,48 @@ import { createDeal, type Action, type Mode } from '../../src/game';
 import type { Page } from '@playwright/test';
 
 const modes: Mode[] = ['classic-1', 'classic-3', 'freecell', 'spider-1', 'spider-2', 'spider-4'];
-async function seedGame(page: Page, seed: number, actions: Action[] = []): Promise<void> {
+async function seedGame(page: Page, seed: number, actions: Action[] = [], mode: Mode = 'classic-1'): Promise<void> {
   // Seed before the application starts: its pagehide handler correctly saves
   // the active game, so injecting into an already-running page is not stable.
-  await page.addInitScript(({ seed, actions }) => {
-    if (!localStorage.getItem('solitaire:v1:game:classic-1')) {
-      localStorage.setItem('solitaire:v1:game:classic-1', JSON.stringify({ version: 1, seed, actions, elapsed: actions.length ? 70 : 0, started: actions.length > 0, recorded: false }));
-      localStorage.setItem('solitaire:v1:stats:classic-1', JSON.stringify({ played: actions.length ? 1 : 0, wins: 0, bestTime: null, bestMoves: null, streak: 0, bestStreak: 0 }));
+  await page.addInitScript(({ seed, actions, mode }) => {
+    if (!localStorage.getItem('solitaire:v1:mode')) localStorage.setItem('solitaire:v1:mode', JSON.stringify(mode));
+    if (!localStorage.getItem('solitaire:v1:game:' + mode)) {
+      localStorage.setItem('solitaire:v1:game:' + mode, JSON.stringify({ version: 1, seed, actions, elapsed: actions.length ? 70 : 0, started: actions.length > 0, recorded: false }));
+      localStorage.setItem('solitaire:v1:stats:' + mode, JSON.stringify({ played: actions.length ? 1 : 0, wins: 0, bestTime: null, bestMoves: null, streak: 0, bestStreak: 0 }));
     }
-  }, { seed, actions });
+  }, { seed, actions, mode });
   await page.goto('./');
+}
+for (const mode of ['classic-1', 'classic-3'] as const) {
+  test(`${mode}: a real double-click moves an eligible tableau card to its foundation`, async ({ page }) => {
+    const deal = createDeal(mode, 9);
+    await seedGame(page, deal.board.seed, [], mode);
+    const action = deal.solution[0]; if (action.type !== 'move') throw new Error('expected initial tableau move');
+    await page.locator(`#tableau [data-card="${action.card}"]`).dblclick();
+    await expect(page.locator(`.upper [data-card="${action.card}"]`)).toHaveCount(1);
+    await expect(page.locator('#metrics')).toContainText('1');
+    await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
+    await expect(page.locator(`#tableau [data-card="${action.card}"]`)).toHaveCount(1);
+  });
+  test(`${mode}: double-clicking an ineligible card does not move it`, async ({ page }) => {
+    const deal = createDeal(mode, 9);
+    const card = deal.board.tableau.map(p => p.at(-1)!).find(c => c.rank > 1)!;
+    await seedGame(page, deal.board.seed, [], mode);
+    await page.locator(`#tableau [data-card="${card.id}"]`).dblclick();
+    await expect(page.locator(`#tableau [data-card="${card.id}"]`)).toHaveCount(1);
+    await expect(page.locator('.upper [data-card]')).toHaveCount(0);
+    await expect(page.locator('#undo')).toBeDisabled();
+  });
+  test(`${mode}: double-click moves the top waste card and can be undone`, async ({ page }) => {
+    const deal = createDeal(mode, 9);
+    const index = deal.solution.findIndex(a => a.type === 'move' && a.from.zone === 'waste');
+    const action = deal.solution[index]; if (action.type !== 'move') throw new Error('expected waste move');
+    await seedGame(page, deal.board.seed, deal.solution.slice(0, index), mode);
+    await page.locator(`.waste-stack [data-card="${action.card}"]`).dblclick();
+    await expect(page.locator(`.single-stack [data-zone="foundation"][data-card="${action.card}"]`)).toHaveCount(1);
+    await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
+    await expect(page.locator(`.waste-stack [data-card="${action.card}"]`)).toHaveCount(1);
+  });
 }
 test('all variants fit portrait, landscape, and desktop without scrolling', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));

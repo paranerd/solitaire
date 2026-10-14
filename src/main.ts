@@ -219,15 +219,24 @@ function pickOrMove(element: HTMLElement): void {
   const cardId = target.dataset.card;
   if (cardId && movableRun(session.board, slot, cardId).length) {
     selected = selected?.card === cardId ? null : { slot, card: cardId };
-    hintAction = null; render(false);
-  } else { selected = null; hintAction = null; render(false); }
+    hintAction = null; updateSelection();
+  } else { selected = null; hintAction = null; updateSelection(); }
+}
+function updateSelection(): void {
+  // Keep the clicked element in place so the browser can recognize a double-click.
+  for (const el of layout.querySelectorAll('.hinted')) el.classList.remove('hinted');
+  for (const el of layout.querySelectorAll<HTMLElement>('.card')) {
+    const active = selected?.card === el.dataset.card;
+    el.classList.toggle('selected', active);
+    el.setAttribute('aria-pressed', String(active));
+  }
 }
 layout.addEventListener('click', e => { if (!suppressClick) pickOrMove(e.target as HTMLElement); });
 layout.addEventListener('dblclick', e => {
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]'); if (!el || autoRunning) return;
   const from = slotFrom(el);
-  const action = legalActions(session.board).find(a => a.type === 'move' && a.card === el.dataset.card && a.to.zone === 'foundation');
-  if (action) perform(action); else { selected = { slot: from, card: el.dataset.card! }; render(false); }
+  const card = pileAt(session.board, from).find(c => c.id === el.dataset.card); if (!card) return;
+  perform({ type: 'move', from, to: { zone: 'foundation', pile: card.suit }, card: card.id });
 });
 let suppressClick = false;
 let drag: { id: number; startX: number; startY: number; x: number; y: number; slot: Slot; card: string; ghosts: HTMLElement[]; active: boolean; rect: DOMRect; cards: Card[] } | null = null;
