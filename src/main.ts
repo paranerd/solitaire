@@ -6,6 +6,9 @@ import { abandonStats, freshSession, loadMode, loadSession, loadSettings, loadSt
 
 const app = document.querySelector<HTMLElement>('#app')!;
 const icons: Record<string, string> = {
+  classic: '<path d="M12 3C10 6 4 9 4 13a4 4 0 0 0 7 2.6L9.5 21h5L13 15.6A4 4 0 0 0 20 13c0-4-6-7-8-10Z"/>',
+  freecell: '<path d="m12 3 8 9-8 9-8-9Z"/>',
+  spider: '<path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M5.6 18.4 18.4 5.6"/>',
   hamburger: '<path d="M5 6h14M5 12h14M5 18h14"/>',
   undo: '<path d="M9 5 4 10l5 5M4 10h9a6 6 0 0 1 0 12" transform="translate(0 -2)"/>',
   hint: '<path d="M9 18h6M10 21h4M8.5 14.5a6 6 0 1 1 7 0c-.9.7-1.5 1.7-1.5 3.5h-4c0-1.8-.6-2.8-1.5-3.5Z"/>',
@@ -412,9 +415,9 @@ function showGames(chosen: Mode = session.board.mode): void {
   const group = chosen.startsWith('classic') ? 'classic' : chosen === 'freecell' ? 'freecell' : 'spider';
   modal('Was möchtest du spielen?', `<p class="dialog-intro">Drei Klassiker. Unendlich viele ruhige Momente.</p>
     <div class="game-choices">
-      <button class="game-choice ${group === 'classic' ? 'active' : ''}" data-mode="classic-1"><span class="choice-symbol">♠</span><b>Classic</b><small>Der Klassiker</small></button>
-      <button class="game-choice ${group === 'freecell' ? 'active' : ''}" data-mode="freecell"><span class="choice-symbol">◇</span><b>FreeCell</b><small>Alles liegt offen</small></button>
-      <button class="game-choice ${group === 'spider' ? 'active' : ''}" data-mode="spider-1"><span class="choice-symbol spider-symbol">✳</span><b>Spider</b><small>Sequenzen sammeln</small></button>
+      <button class="game-choice ${group === 'classic' ? 'active' : ''}" data-mode="classic-1"><span class="choice-symbol">${icon('classic')}</span><b>Classic</b><small>Der Klassiker</small></button>
+      <button class="game-choice ${group === 'freecell' ? 'active' : ''}" data-mode="freecell"><span class="choice-symbol">${icon('freecell')}</span><b>FreeCell</b><small>Alles liegt offen</small></button>
+      <button class="game-choice ${group === 'spider' ? 'active' : ''}" data-mode="spider-1"><span class="choice-symbol spider-symbol">${icon('spider')}</span><b>Spider</b><small>Sequenzen sammeln</small></button>
     </div>
     ${group !== 'freecell' ? `<div class="option-line"><span>${group === 'classic' ? 'Karten ziehen' : 'Farben'}</span><div class="segments" role="group" aria-label="${group === 'classic' ? 'Karten ziehen' : 'Spider-Farben'}">${(group === 'classic' ? [1, 3] : [1, 2, 4]).map(n => `<button class="${chosen.endsWith(String(n)) ? 'active' : ''}" data-variant="${group}-${n}" aria-pressed="${chosen.endsWith(String(n))}">${n}</button>`).join('')}</div></div>` : '<p class="variant-note">52 Karten · 4 freie Zellen · 8 Spalten</p>'}
     <button class="primary wide" id="start-game">Neue Partie ${icon('arrow')}</button>
