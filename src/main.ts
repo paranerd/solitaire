@@ -22,6 +22,8 @@ const modes = Object.keys(modeNames) as Mode[];
 const settings = loadSettings();
 let session = loadSession(loadMode());
 let selected: { slot: Slot; card: string } | null = null;
+let lastTap: { card: string; time: number } | null = null;
+let pointerInput = 'mouse';
 let hintAction: Action | null = null;
 let autoRunning = false;
 let animationVersion = 0;
@@ -38,7 +40,7 @@ let lastSave = clockLast;
 let noticeTimer = 0;
 
 app.innerHTML = `
-  <div class="game-info"><span class="game-mark" aria-hidden="true">♠</span><button id="game-label" aria-label="Spielart wechseln"></button></div>
+  <div class="game-info"><span class="game-mark" aria-hidden="true">♠</span><span id="game-label"></span></div>
   <div id="metrics" class="metrics" aria-label="Spielinformationen"></div>
   <div id="board" class="board"><div id="layout" class="layout"><div id="upper" class="upper"></div><div id="tableau" class="tableau"></div></div></div>
   <div class="action-menu">
@@ -69,11 +71,21 @@ const dialog = document.querySelector<HTMLDialogElement>('#dialog')!;
 const content = document.querySelector<HTMLElement>('#dialog-content')!;
 const notice = document.querySelector<HTMLElement>('#notice')!;
 const button = (id: string) => document.querySelector<HTMLButtonElement>('#' + id)!;
-button('actions-toggle').addEventListener('click', () => {
-  const actions = document.querySelector<HTMLElement>('#actions')!;
-  actions.hidden = !actions.hidden;
-  button('actions-toggle').setAttribute('aria-expanded', String(!actions.hidden));
+const actions = document.querySelector<HTMLElement>('#actions')!;
+function setActionsOpen(open: boolean): void {
+  if (!open && actions.contains(document.activeElement)) button('actions-toggle').focus({ preventScroll: true });
+  actions.hidden = !open;
+  button('actions-toggle').setAttribute('aria-expanded', String(open));
+}
+button('actions-toggle').addEventListener('click', () => setActionsOpen(actions.hidden));
+actions.addEventListener('click', e => {
+  if ((e.target as HTMLElement).closest('button')) setActionsOpen(false);
 });
+const closeOutsideActions = (e: Event) => {
+  if (!(e.target as HTMLElement).closest('.action-menu')) setActionsOpen(false);
+};
+document.addEventListener('pointerdown', closeOutsideActions);
+document.addEventListener('click', closeOutsideActions);
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const timeLabel = (seconds: number) => { const s = Math.floor(seconds); return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`; };
 function announce(message: string): void { document.querySelector<HTMLElement>('#live')!.textContent = message; }
@@ -155,6 +167,7 @@ function stockMarkup(): string {
   </button>`;
 }
 function render(animate = true): void {
+  lastTap = null;
   const previous = new Map<string, { rect: DOMRect; up: string | undefined; element: HTMLElement }>();
   if (animate && motionAllowed()) for (const el of layout.querySelectorAll<HTMLElement>('.card')) previous.set(el.dataset.card!, { rect: el.getBoundingClientRect(), up: el.dataset.up, element: el.cloneNode(true) as HTMLElement });
   const focused = document.activeElement as HTMLElement | null;
@@ -183,7 +196,7 @@ function render(animate = true): void {
     const cards = pile.map((card, i) => { const html = cardMarkup(card, slot, y); if (i < pile.length - 1) y += (card.up ? faceStep : hiddenStep) * scale; return html; }).join('');
     return `<div class="column" ${slotAttrs(slot)}>${emptySlot(slot, `Leere Spalte ${col + 1}`, session.board.mode.startsWith('classic') ? 'K' : '')}${cards}</div>`;
   }).join('');
-  button('game-label').innerHTML = `<span>${mode === 'freecell' ? 'FreeCell' : spider ? 'Spider' : 'Classic'}</span>`;
+  document.querySelector<HTMLElement>('#game-label')!.textContent = mode === 'freecell' ? 'FreeCell' : spider ? 'Spider' : 'Classic';
   button('undo').disabled = !session.actions.length || autoRunning;
   button('hint').disabled = won(session.board) || autoRunning;
   button('new').disabled = autoRunning;
@@ -282,16 +295,38 @@ function updateSelection(): void {
     el.setAttribute('aria-pressed', String(active));
   }
 }
-layout.addEventListener('click', e => { if (!suppressClick) pickOrMove(e.target as HTMLElement); });
-layout.addEventListener('dblclick', e => {
-  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]'); if (!el || autoRunning) return;
+function moveToFoundation(element: HTMLElement): boolean {
+  const el = element.closest<HTMLElement>('[data-card]');
+  if (!el || autoRunning || suppressClick || dialog.open) return false;
   const from = slotFrom(el);
-  const card = pileAt(session.board, from).find(c => c.id === el.dataset.card); if (!card) return;
-  perform({ type: 'move', from, to: { zone: 'foundation', pile: card.suit }, card: card.id });
+  if (from.zone === 'foundation') return false;
+  const card = pileAt(session.board, from).find(c => c.id === el.dataset.card);
+  return Boolean(card && perform({ type: 'move', from, to: { zone: 'foundation', pile: card.suit }, card: card.id }));
+}
+layout.addEventListener('click', e => {
+  if (suppressClick) { lastTap = null; return; }
+  const target = e.target as HTMLElement;
+  const card = target.closest<HTMLElement>('[data-card]');
+  // WebKit emits ordinary mouse clicks for touch taps, without a native dblclick.
+  // Use the preceding pointerdown to identify touch and pen input instead.
+  if (e.detail > 0 && (pointerInput === 'touch' || pointerInput === 'pen') && card) {
+    const previous = lastTap;
+    const now = performance.now();
+    lastTap = { card: card.dataset.card!, time: now };
+    if (previous && previous.card === card.dataset.card && now - previous.time <= 400) {
+      lastTap = null;
+      if (moveToFoundation(card)) return;
+    }
+  } else lastTap = null;
+  pickOrMove(target);
+});
+layout.addEventListener('dblclick', e => {
+  if (pointerInput !== 'touch' && pointerInput !== 'pen') moveToFoundation(e.target as HTMLElement);
 });
 let suppressClick = false;
 let drag: { id: number; startX: number; startY: number; x: number; y: number; slot: Slot; card: string; ghosts: HTMLElement[]; active: boolean; rect: DOMRect; cards: Card[] } | null = null;
 layout.addEventListener('pointerdown', e => {
+  pointerInput = e.pointerType;
   if (e.button !== 0 || autoRunning || dialog.open) return;
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]'); if (!el) return;
   const slot = slotFrom(el), cards = movableRun(session.board, slot, el.dataset.card!); if (!cards.length) return;
@@ -302,7 +337,7 @@ layout.addEventListener('pointermove', e => {
   if (!drag || drag.id !== e.pointerId) return;
   drag.x = e.clientX; drag.y = e.clientY;
   if (!drag.active && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 6) {
-    drag.active = true; selected = null; hintAction = null;
+    drag.active = true; selected = null; hintAction = null; lastTap = null;
     drag.cards.forEach(c => {
       const original = layout.querySelector<HTMLElement>(`[data-card="${c.id}"]`)!;
       const rect = original.getBoundingClientRect(); const ghost = original.cloneNode(true) as HTMLElement;
@@ -334,7 +369,7 @@ function endDrag(e: PointerEvent, cancelled = false): void {
   }
 }
 layout.addEventListener('pointerup', e => endDrag(e));
-layout.addEventListener('pointercancel', e => endDrag(e, true));
+layout.addEventListener('pointercancel', e => { lastTap = null; endDrag(e, true); });
 button('undo').addEventListener('click', undo);
 function undo(): void {
   if (!session.actions.length || autoRunning || dialog.open) return;
@@ -371,7 +406,6 @@ function modal(title: string, body: string, eyebrow = 'SOLITAIRE'): void {
 dialog.addEventListener('click', e => { if (e.target === dialog) { const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); } });
 dialog.addEventListener('close', () => { clockLast = performance.now(); });
 button('new').addEventListener('click', () => showGames());
-button('game-label').addEventListener('click', () => showGames());
 button('menu').addEventListener('click', showSettings);
 button('stats').addEventListener('click', () => showStats());
 function showGames(chosen: Mode = session.board.mode): void {
@@ -452,7 +486,7 @@ function showRules(mode: Mode): void {
     `Der Talon zieht ${mode === 'classic-3' ? 'drei Karten' : 'eine Karte'} auf einmal. Nur die oberste Karte des Abwurfs ist spielbar. Du kannst den Talon unbegrenzt erneut durchgehen.`,
     'Punkte: +10 auf die Ablage, +5 für eine aufgedeckte Karte oder vom Abwurf auf eine Spalte, −15 von der Ablage zurück, −20 für einen neuen Talon-Durchgang (mindestens 0).',
   ];
-  modal(modeNames[mode], `<div class="rules">${text.map(t => `<p>${escape(t)}</p>`).join('')}<p>Karten ziehen oder zuerst eine Karte und dann ihr Ziel antippen. Ein Doppelklick legt eine passende Karte direkt auf die Ablage. Rückgängig stellt auch die Punkte wieder her. Hinweise zeigen einen legalen Zug; nach eigenen Abweichungen ist damit kein vollständiger Lösungsweg garantiert.</p><p>Alle Austeilungen werden konstruktiv mit einem vollständigen Lösungsweg erzeugt. Sie sind deshalb lösbar, aber nicht gleichverteilt zufällig.</p></div><button class="secondary wide" id="back-games">Zurück zur Spielauswahl</button>`, 'SPIELREGELN');
+  modal(modeNames[mode], `<div class="rules">${text.map(t => `<p>${escape(t)}</p>`).join('')}<p>Karten ziehen oder zuerst eine Karte und dann ihr Ziel antippen. Ein Doppelklick oder Doppeltipp legt eine passende Karte direkt auf die Ablage. Rückgängig stellt auch die Punkte wieder her. Hinweise zeigen einen legalen Zug; nach eigenen Abweichungen ist damit kein vollständiger Lösungsweg garantiert.</p><p>Alle Austeilungen werden konstruktiv mit einem vollständigen Lösungsweg erzeugt. Sie sind deshalb lösbar, aber nicht gleichverteilt zufällig.</p></div><button class="secondary wide" id="back-games">Zurück zur Spielauswahl</button>`, 'SPIELREGELN');
   content.querySelector('#back-games')!.addEventListener('click', () => showGames(mode));
 }
 function showWin(): void {
@@ -461,6 +495,7 @@ function showWin(): void {
   content.querySelector('#win-stats')!.addEventListener('click', () => showStats());
 }
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !actions.hidden) { setActionsOpen(false); button('actions-toggle').focus({ preventScroll: true }); e.preventDefault(); return; }
   if (dialog.open || ['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
   else if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'h') { e.preventDefault(); showHint(); }

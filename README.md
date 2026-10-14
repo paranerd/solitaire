@@ -9,13 +9,13 @@ Eine minimalistische Solitaire-PWA auf Deutsch. TypeScript, SCSS und Vite – oh
 - Classic/Klondike mit 1 oder 3 gezogenen Karten und unbegrenzten Talon-Durchgängen
 - FreeCell mit vier freien Zellen und regelkonformen Sequenzbewegungen
 - Spider mit 1, 2 oder 4 Farben
-- Ziehen, Antippen zum Auswählen/Ablegen, Tastatur und Doppelklick auf passende Ablagen
+- Ziehen, Antippen zum Auswählen/Ablegen, Tastatur sowie Doppelklick oder Doppeltipp auf passende Ablagen
 - Rückgängig, Zughinweise und automatisches Fertigspielen von nachweislich gewonnenen Positionen
 - Automatische Speicherung jeder Variante, lokale Statistik und optionale Zeit-, Zug- und Punkteanzeige
 - Automatisches helles/dunkles Farbschema, Kartenbewegungs- und Wendeanimationen, Berücksichtigung von reduzierter Bewegung
 - Anpassung an Hoch- und Querformat; das Spielfeld scrollt nicht
 
-Der Hamburger-Button links oben klappt die Aktionsbuttons nach unten aus. Sie bleiben bis zum erneuten Klick geöffnet. Das Plus öffnet die Spielauswahl, das Zahnrad die Einstellungen und das Balkensymbol die Statistik. `H` zeigt einen Hinweis, `N` die Spielauswahl, `Strg/⌘ Z` macht einen Zug rückgängig. `Tab`, Pfeiltasten und `Enter` bedienen das Spielfeld. `Escape` hebt die Auswahl auf.
+Der Hamburger-Button links oben klappt die Aktionsbuttons nach unten aus. Nach Auswahl einer Aktion, bei Klick außerhalb oder mit Escape klappt das Menü wieder zu. Die Spielanzeige daneben hat keine Klickaktion. Das Plus öffnet die Spielauswahl, das Zahnrad die Einstellungen und das Balkensymbol die Statistik. `H` zeigt einen Hinweis, `N` die Spielauswahl, `Strg/⌘ Z` macht einen Zug rückgängig. `Tab`, Pfeiltasten und `Enter` bedienen das Spielfeld. `Escape` hebt die Auswahl auf.
 
 ## Lösbare Austeilungen
 

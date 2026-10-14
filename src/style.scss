@@ -32,8 +32,7 @@ svg { width: 22px; height: 22px; flex-shrink: 0; }
   position: absolute; left: calc(var(--header-left) + 56px); top: var(--header-top); min-height: 44px;
   display: flex; gap: 12px; align-items: center; z-index: 2;
   .game-mark { font-size: 30px; opacity: .8; line-height: 1; }
-  button { display: grid; gap: 4px; text-align: left; padding: 3px 0; }
-  button > span { font-size: 15px; font-weight: 650; letter-spacing: .01em; }
+  #game-label { font-size: 15px; font-weight: 650; letter-spacing: .01em; }
 }
 .metrics {
   position: absolute; top: max(30px, env(safe-area-inset-top)); right: max(32px, env(safe-area-inset-right));
@@ -191,7 +190,7 @@ dialog {
 @media (max-width: 600px) {
   .update-banner { width: calc(100% - 32px); flex-direction: column; gap: 8px; padding: 14px 16px; align-items: stretch; .update-actions { justify-content: space-between; } }
   #app { --header-left: max(17px, env(safe-area-inset-left)); --header-top: calc(14px + env(safe-area-inset-top)); }
-  .game-info { gap: 8px; .game-mark { font-size: 24px; } button > span { font-size: 13px; } }
+  .game-info { gap: 8px; .game-mark { font-size: 24px; } #game-label { font-size: 13px; } }
   .metrics { top: calc(24px + env(safe-area-inset-top)); right: max(17px, env(safe-area-inset-right)); gap: 15px; b { font-size: 13px; } small { font-size: 9px; } }
   .board { top: calc(88px + env(safe-area-inset-top)); bottom: calc(105px + env(safe-area-inset-bottom)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); }
   .auto-finish { right: 50%; transform: translateX(50%); bottom: calc(100px + env(safe-area-inset-bottom)); padding: 7px 13px; font-size: 11px; }
@@ -205,7 +204,7 @@ dialog {
 }
 @media (max-height: 500px) and (orientation: landscape) {
   #app { --header-left: max(18px, env(safe-area-inset-left)); --header-top: max(3px, env(safe-area-inset-top)); }
-  .game-info { gap: 8px; .game-mark { font-size: 22px; } button { display: flex; align-items: baseline; gap: 10px; } button > span { font-size: 12px; } }
+  .game-info { gap: 8px; .game-mark { font-size: 22px; } #game-label { font-size: 12px; } }
   .metrics { top: max(15px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); gap: 20px; > span { display: flex; gap: 6px; align-items: baseline; } b { font-size: 12px; } small { font-size: 9px; } }
   .board { top: calc(53px + env(safe-area-inset-top)); bottom: calc(64px + env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); }
   .tools { gap: 2px; .tool { height: 38px; } }

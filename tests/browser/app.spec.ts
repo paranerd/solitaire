@@ -21,6 +21,7 @@ async function seedGame(page: Page, seed: number, actions: Action[] = [], mode: 
 }
 for (const mode of ['classic-1', 'classic-3'] as const) {
   test(`${mode}: a real double-click moves an eligible tableau card to its foundation`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
     const deal = createDeal(mode, 9);
     await seedGame(page, deal.board.seed, [], mode);
     const action = deal.solution[0]; if (action.type !== 'move') throw new Error('expected initial tableau move');
@@ -32,6 +33,7 @@ for (const mode of ['classic-1', 'classic-3'] as const) {
     await expect(page.locator(`#tableau [data-card="${action.card}"]`)).toHaveCount(1);
   });
   test(`${mode}: double-clicking an ineligible card does not move it`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
     const deal = createDeal(mode, 9);
     const card = deal.board.tableau.map(p => p.at(-1)!).find(c => c.rank > 1)!;
     await seedGame(page, deal.board.seed, [], mode);
@@ -41,6 +43,7 @@ for (const mode of ['classic-1', 'classic-3'] as const) {
     await expect(page.locator('#undo')).toBeDisabled();
   });
   test(`${mode}: double-click moves the top waste card and can be undone`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
     const deal = createDeal(mode, 9);
     const index = deal.solution.findIndex(a => a.type === 'move' && a.from.zone === 'waste');
     const action = deal.solution[index]; if (action.type !== 'move') throw new Error('expected waste move');
@@ -121,7 +124,7 @@ test('drag moves a card and hint highlights its source', async ({ page }) => {
   await openActions(page);
   await page.getByRole('button', { name: 'Zughinweis', exact: true }).click();
   await expect(page.locator(`[data-card="${action.card}"]`)).toHaveClass(/hinted/);
-  await page.locator('#actions-toggle').click();
+  await expect(page.locator('#actions')).toBeHidden();
   const source = await page.locator(`[data-card="${action.card}"]`).boundingBox();
   const target = await page.locator(`.upper [data-zone="foundation"][data-pile="${action.to.pile}"]`).boundingBox();
   await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2); await page.mouse.down();
@@ -175,25 +178,74 @@ test('PWA caches every asset, reloads offline and opens every game offline', asy
   }
 });
 
-test('action menu stays expanded across actions and closes only on its toggle', async ({ page }) => {
+test('game info has no action and the menu closes after actions, outside clicks, Escape, and toggling', async ({ page }) => {
   await seedGame(page, 9);
+  await page.locator('#game-label').click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.locator('.game-info button')).toHaveCount(0);
   const toggle = page.getByRole('button', { name: 'Spielaktionen ein-/ausklappen', exact: true });
   const actions = page.getByRole('navigation', { name: 'Spielaktionen' });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(actions).toBeHidden();
-  await toggle.focus();
-  await page.keyboard.press('Enter');
+  await toggle.focus(); await page.keyboard.press('Enter');
   await expect(actions).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(actions.getByRole('button')).toHaveCount(5);
   await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
   await page.getByRole('button', { name: 'Zurück zum Spiel', exact: true }).click();
-  await expect(actions).toBeVisible();
+  await expect(actions).toBeHidden();
+  await openActions(page);
   await page.getByRole('button', { name: 'Zughinweis', exact: true }).click();
-  await expect(actions).toBeVisible();
-  await page.locator('#metrics').click();
-  await expect(actions).toBeVisible();
-  await toggle.click();
+  await expect(actions).toBeHidden();
+  await expect(page.locator('.hinted').first()).toBeVisible();
+  await openActions(page); await page.locator('#metrics').click();
+  await expect(actions).toBeHidden();
+  await openActions(page); await page.keyboard.press('Escape');
+  await expect(actions).toBeHidden(); await expect(toggle).toBeFocused();
+  await openActions(page); await toggle.click();
   await expect(actions).toBeHidden();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+});
+
+test.describe('small touchscreens', () => {
+  test.use({ hasTouch: true, viewport: { width: 320, height: 568 } });
+  test.skip(({ browserName }) => browserName === 'firefox', 'Playwright desktop Firefox cannot emulate a touchscreen.');
+  for (const mode of ['classic-1', 'classic-3', 'freecell'] as const) {
+    test(`${mode}: double-tap moves a tableau card exactly once and supports undo`, async ({ page }) => {
+      const deal = createDeal(mode, 9);
+      const action = deal.solution[0]; if (action.type !== 'move') throw new Error('expected tableau move');
+      await seedGame(page, 9, [], mode);
+      const card = page.locator(`#tableau [data-card="${action.card}"]`);
+      await card.tap(); await expect(card).toHaveClass(/selected/);
+      await card.tap();
+      await expect(page.locator(`.upper [data-zone="foundation"][data-card="${action.card}"]`)).toHaveCount(1);
+      expect(await page.evaluate(mode => JSON.parse(localStorage.getItem('solitaire:v1:game:' + mode)!).actions.length, mode)).toBe(1);
+      await openActions(page); await page.getByRole('button', { name: 'Rückgängig', exact: true }).tap();
+      await expect(card).toHaveCount(1); await expect(page.locator('#actions')).toBeHidden();
+    });
+  }
+  for (const mode of ['classic-1', 'classic-3'] as const) {
+    test(`${mode}: double-tap moves the top waste card`, async ({ page }) => {
+      const deal = createDeal(mode, 9);
+      const index = deal.solution.findIndex(a => a.type === 'move' && a.from.zone === 'waste');
+      const action = deal.solution[index]; if (action.type !== 'move') throw new Error('expected waste move');
+      await seedGame(page, 9, deal.solution.slice(0, index), mode);
+      const card = page.locator(`.waste-stack [data-card="${action.card}"]`);
+      await card.tap(); await card.tap();
+      await expect(page.locator(`.upper [data-zone="foundation"][data-card="${action.card}"]`)).toHaveCount(1);
+      expect(await page.evaluate(mode => JSON.parse(localStorage.getItem('solitaire:v1:game:' + mode)!).actions.length, mode)).toBe(index + 1);
+    });
+  }
+  test('slow taps and double-tapping an ineligible card do not send cards to a foundation', async ({ page }) => {
+    const deal = createDeal('classic-1', 9);
+    const action = deal.solution[0]; if (action.type !== 'move') throw new Error('expected initial move');
+    await seedGame(page, 9);
+    const ace = page.locator(`#tableau [data-card="${action.card}"]`);
+    await ace.tap(); await page.waitForTimeout(500); await ace.tap();
+    await expect(ace).not.toHaveClass(/selected/);
+    await expect(page.locator('.upper [data-zone="foundation"][data-card]')).toHaveCount(0);
+    const ineligible = deal.board.tableau.map(p => p.at(-1)!).find(c => c.rank > 1)!;
+    const card = page.locator(`#tableau [data-card="${ineligible.id}"]`);
+    await card.tap(); await card.tap();
+    await expect(card).toHaveCount(1);
+    await expect(page.locator('#undo')).toBeDisabled();
+  });
 });
